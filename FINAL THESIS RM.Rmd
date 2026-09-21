@@ -1,0 +1,999 @@
+---
+title: "FINAL THESIS RSCRIPT"
+author: "Kait Nguyen"
+date: "2026-04-27"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+list.files()
+list.files("nsduh_2023")
+list.files("nsduh_2023/raw", all.files = TRUE)
+load("nsduh_2023/raw/NSDUH_2023.Rdata")
+
+nsduh_raw <- data
+nsduh <- nsduh_raw
+rm(data)
+
+dim(nsduh)
+names(nsduh)[1:25]
+library(survey)
+```
+
+```{r}
+####DEMOGRAPHIC VARIABLES
+##RECODING AGE 
+
+grep("AGE", names(nsduh), value = TRUE)
+table(nsduh$AGE3, useNA = "ifany")
+
+library(dplyr)
+nsduh$AGE3 <- factor(
+  nsduh$AGE3,
+  levels = c(1, 2, 3),
+  labels = c("12–13", "14–15", "16–17")
+)
+table(nsduh$AGE3)
+
+nsduh <- nsduh %>%
+  filter(!is.na(AGE3))
+
+##OUTCOME VARIABLE ~ MARIJUANA AND ALC USE
+nsduh <- nsduh %>%
+  mutate(
+    co_use = case_when(
+      CADRKMARJ %in% c(1, 5) ~ 1,
+      CADRKMARJ %in% c(91, 93) ~ 0,
+      CADRKMARJ %in% c(6, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+table(nsduh$CADRKMARJ, useNA = "ifany")
+table(nsduh$co_use, useNA = "ifany")
+
+nsduh$co_use <- factor(
+  nsduh$co_use,
+  levels = c(0, 1),
+  labels = c("No", "Yes")
+)
+
+##SEX
+grep("SEX", names(nsduh), value = TRUE)
+nsduh <- nsduh %>%
+  mutate(
+    sex = case_when(
+      IRSEX == 1 ~ "Male",
+      IRSEX == 2 ~"Female",
+      TRUE ~ NA_character_
+    )
+  )
+nsduh$sex <- factor(nsduh$sex, levels = c("Male", "Female"))
+table(nsduh$sex, useNA = "ifany")
+
+## RACE/ ETHNICITY
+nsduh <- nsduh %>%
+  mutate(
+    race4 = case_when(
+      NEWRACE2 == 1 ~ "Non-Hispanic White",
+      NEWRACE2 == 2 ~ "Non-Hispanic Black",
+      NEWRACE2 == 7 ~ "Hispanic",
+      NEWRACE2 %in% c(3, 4, 5, 6) ~ "Other",
+      TRUE ~ NA_character_
+    )
+  )
+
+nsduh$race4 <- factor(
+  nsduh$race4,
+  levels = c(
+    "Non-Hispanic White",
+    "Non-Hispanic Black",
+    "Hispanic",
+    "Other"
+  )
+)
+
+table(nsduh$race4, useNA = "ifany")
+
+##POVERTY LEVEL
+grep("POV", names(nsduh), value = TRUE)
+nsduh <- nsduh %>%
+  mutate(
+    poverty = case_when(
+      POVERTY3 == 1 ~ "Below poverty threshold",
+      POVERTY3 == 2 ~ "Below 200% poverty threshold",
+      POVERTY3 == 3 ~ "At or above 200% poverty threshold",
+      TRUE ~ NA_character_
+    )
+  )
+nsduh$poverty <- factor(
+  nsduh$poverty,
+  levels = c(
+    "Below poverty threshold",
+    "Below 200% poverty threshold",
+    "At or above 200% poverty threshold"
+  ),
+)
+table(nsduh$poverty, useNA = "ifany")
+
+##EDUCATION
+nsduh <- nsduh %>%
+  mutate(
+    in_school = case_when(
+      EDUSCHLGO %in% c(1, 11) ~ "Currently in school",
+      EDUSCHLGO == 2 ~ "Not currently in school",
+      TRUE ~ NA_character_
+    )
+  )
+
+nsduh$in_school <- factor(
+  nsduh$in_school,
+  levels = c("Not currently in school", "Currently in school")
+)
+table(nsduh$in_school, useNA = "ifany")
+
+
+####INDEPENDENT VARIABLES
+###YOUTH EXPERIENCES
+
+##SCHOOL ENGAGEMENT- felt about going to school
+nsduh <- nsduh %>%
+  mutate(
+    school_like = case_when(
+      YESCHFLT %in% 1:4 ~ YESCHFLT,
+      YESCHFLT %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$school_like <- factor(nsduh$school_like)
+levels(nsduh$school_like) <- c(
+  "Liked school a lot",
+  "Kind of liked school",
+  "Did not like school very much",
+  "Hated school"
+)
+table(nsduh$school_like, useNA = "ifany")
+
+#- schoolwork was meaningful and important
+nsduh <- nsduh %>%
+  mutate(
+    school_work_meaningful = case_when(
+      YESCHWRK %in% 1:4 ~ YESCHWRK,
+      YESCHWRK %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$school_work_meaningful <- factor(nsduh$school_work_meaningful)
+levels(nsduh$school_work_meaningful) <- c("Always", "Sometimes", "Seldom", "Never")
+table(nsduh$school_work_meaningful, useNA = "ifany")
+
+# - importance of school for future
+nsduh <- nsduh %>%
+  mutate(
+    school_future_importance = case_when(
+      YESCHIMP %in% 1:4 ~ YESCHIMP,
+      YESCHIMP %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$school_future_importance <- factor(nsduh$school_future_importance)
+levels(nsduh$school_future_importance) <- c(
+  "Very important",
+  "Somewhat important",
+  "Somewhat unimportant",
+  "Very unimportant"
+)
+table(nsduh$school_future_importance, useNA = "ifany")
+
+
+####BEHAVIORAL/PSYCHOSOCIAL PREDICTORS
+###PEER USE NORMS
+
+#-perceived marijuana use among peers
+nsduh <- nsduh %>%
+  mutate(
+    peer_mj_use = case_when(
+      YESTSMJ %in% 1:4 ~ YESTSMJ,
+      YESTSMJ %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$peer_mj_use <- factor(
+  nsduh$peer_mj_use,
+  levels = 1:4,
+  labels = c(
+    "None of them",
+    "A few of them",
+    "Most of them",
+    "All of them"
+  )
+)
+
+table(nsduh$peer_mj_use, useNA = "ifany")
+
+#binary for modeling
+nsduh <- nsduh %>%
+  mutate(
+    peer_mj_use_bin = case_when(
+      peer_mj_use %in% c("None of them", "A few of them") ~ "Low",
+      peer_mj_use %in% c("Most of them", "All of them") ~ "High",
+      TRUE ~ NA_character_
+    )
+  )
+
+nsduh$peer_mj_use_bin <- factor(
+  nsduh$peer_mj_use_bin,
+  levels = c("Low", "High")
+)
+
+table(nsduh$peer_mj_use_bin, useNA = "ifany")
+table(nsduh$peer_mj_use_bin, nsduh$co_use)
+
+#-perceived alcohol use among peers
+nsduh <- nsduh %>%
+  mutate(
+    peer_alc_use = case_when(
+      YESTSALC %in% 1:4 ~ YESTSALC,
+      YESTSALC %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$peer_alc_use <- factor(
+  nsduh$peer_alc_use,
+  levels = 1:4,
+  labels = c(
+    "None of them",
+    "A few of them",
+    "Most of them",
+    "All of them"
+  )
+)
+table(nsduh$peer_alc_use, useNA = "ifany")
+
+nsduh <- nsduh %>%
+  mutate(
+    peer_alc_use_bin = case_when(
+      peer_alc_use %in% c("None of them", "A few of them") ~ "Low",
+      peer_alc_use %in% c("Most of them", "All of them") ~ "High",
+      TRUE ~ NA_character_
+    )
+  )
+
+nsduh$peer_alc_use_bin <- factor(
+  nsduh$peer_alc_use_bin,
+  levels = c("Low", "High")
+)
+table(nsduh$peer_alc_use_bin, useNA = "ifany")
+table(nsduh$peer_alc_use_bin, nsduh$co_use)
+
+#- perceived frequency of peers getting drunk at least weekly
+nsduh <- nsduh %>%
+  mutate(
+    peer_drunkenness = case_when(
+      YESTSDNK %in% 1:4 ~ YESTSDNK,
+      YESTSDNK %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$peer_drunkenness <- factor(
+  nsduh$peer_drunkenness,
+  levels = 1:4,
+  labels = c(
+    "None of them",
+    "A few of them",
+    "Most of them",
+    "All of them"
+  )
+)
+table(nsduh$peer_drunkenness, useNA = "ifany")
+
+nsduh <- nsduh %>%
+  mutate(
+    peer_drunkenness_bin = case_when(
+      peer_drunkenness %in% c("None of them", "A few of them") ~ "Low",
+      peer_drunkenness %in% c("Most of them", "All of them") ~ "High",
+      TRUE ~ NA_character_
+    )
+  )
+
+nsduh$peer_drunkenness_bin <- factor(
+  nsduh$peer_drunkenness_bin,
+  levels = c("Low", "High")
+)
+
+table(nsduh$peer_drunkenness_bin, useNA = "ifany")
+table(nsduh$peer_drunkenness_bin, nsduh$co_use)
+
+#- source of alcohol
+nsduh <- nsduh %>%
+  mutate(
+    alcohol_source = case_when(
+      CAFREWHO %in% c(1, 11) ~ "Parent/guardian",
+      CAFREWHO %in% c(2, 3, 13) ~ "Other adult (21+)",
+      CAFREWHO %in% c(4, 14) ~ "Underage source",
+      CAFREWHO %in% c(5, 15) ~ "Took from home",
+      CAFREWHO == 6 ~ "Took from someone else's home",
+      CAFREWHO == 7 ~ "Other source",
+      CAFREWHO %in% c(85, 91, 93, 94, 97, 98, 99) ~ NA_character_,
+      TRUE ~ NA_character_
+    )
+  )
+nsduh$alcohol_source <- factor(
+  nsduh$alcohol_source,
+  levels = c(
+    "Parent/guardian",
+    "Other adult (21+)",
+    "Underage source",
+    "Took from home",
+    "Took from someone else's home",
+    "Other source"
+  )
+)
+table(nsduh$alcohol_source, useNA = "ifany")
+
+
+
+####INDIVIDUAL LEVEL ATTITUDES
+#perceived friend norms- marijuana
+nsduh <- nsduh %>%
+  mutate(
+    friend_mj_disapproval = case_when(
+      YEGMJMO %in% 1:3 ~ YEGMJMO,
+      YEGMJMO %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$friend_mj_disapproval <- factor(
+  nsduh$friend_mj_disapproval,
+  levels = 1:3,
+  labels = c(
+    "Neither approve nor disapprove",
+    "Somewhat disapprove",
+    "Strongly disapprove"
+  )
+)
+table(nsduh$friend_mj_disapproval, useNA = "ifany")
+
+#perceived friend norms- alcohol
+nsduh <- nsduh %>%
+  mutate(
+    friend_alc_disapproval = case_when(
+      YEGALDLY %in% 1:3 ~ YEGALDLY,
+      YEGALDLY %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$friend_alc_disapproval <- factor(
+  nsduh$friend_alc_disapproval,
+  levels = 1:3,
+  labels = c(
+    "Neither approve nor disapprove",
+    "Somewhat disapprove",
+    "Strongly disapprove"
+  )
+)
+table(nsduh$friend_alc_disapproval, useNA = "ifany")
+
+#perceived close friends- marijuana
+nsduh <- nsduh %>%
+  mutate(
+    closefriends_mj_disapproval = case_when(
+      YEFMJMO %in% 1:3 ~ YEFMJMO,
+      YEFMJMO %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$closefriends_mj_disapproval <- factor(
+  nsduh$closefriends_mj_disapproval,
+  levels = 1:3,
+  labels = c(
+    "Neither approve nor disapprove",
+    "Somewhat disapprove",
+    "Strongly disapprove"
+  )
+)
+table(nsduh$closefriends_mj_disapproval, useNA = "ifany")
+
+#perceived close friends - alcohol
+nsduh <- nsduh %>%
+  mutate(
+    closefriends_alc_disapproval = case_when(
+      YEFALDLY %in% 1:3 ~ YEFALDLY,
+      YEFALDLY %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$closefriends_alc_disapproval <- factor(
+  nsduh$closefriends_alc_disapproval,
+  levels = 1:3,
+  labels = c(
+    "Neither approve nor disapprove",
+    "Somewhat disapprove",
+    "Strongly disapprove"
+  )
+)
+table(nsduh$closefriends_alc_disapproval, useNA = "ifany")
+
+
+####MENTAL HEALTH
+#suicidal ideation
+nsduh <- nsduh %>%
+  mutate(
+    suicidal_ideation = case_when(
+      YUSUITHK == 1 ~ 1,
+      YUSUITHK == 2 ~ 0,
+      YUSUITHK %in% c(3, 4, 85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$suicidal_ideation <- factor(
+  nsduh$suicidal_ideation,
+  levels = c(0, 1),
+  labels = c("No", "Yes")
+)
+table(nsduh$suicidal_ideation, useNA = "ifany")
+
+#depressive symptoms
+nsduh <- nsduh %>%
+  mutate(
+    depressive_symptoms = case_when(
+      YODPREV == 1 ~ 1,
+      YODPREV == 2 ~ 0,
+      YODPREV %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$depressive_symptoms <- factor(
+  nsduh$depressive_symptoms,
+  levels = c(0, 1),
+  labels = c("No", "Yes")
+)
+table(nsduh$depressive_symptoms, useNA = "ifany")
+
+
+
+####COVARIATES- PARENTAL ENVIRONMENT
+#parental engagement
+nsduh <- nsduh %>%
+  mutate(
+    parent_talked_drugs = case_when(
+      YEPRTDNG == 1 ~ 1,
+      YEPRTDNG == 2 ~ 0,
+      YEPRTDNG %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$parent_talked_drugs <- factor(
+  nsduh$parent_talked_drugs,
+  levels = c(0, 1),
+  labels = c("No", "Yes")
+)
+table(nsduh$parent_talked_drugs, useNA = "ifany")
+
+####PERCEIVED PARENTAL NORMS
+#parental norms- marijuana
+nsduh <- nsduh %>%
+  mutate(
+    parent_mj_disapproval = case_when(
+      YEPMJMO %in% 1:3 ~ YEPMJMO,
+      YEPMJMO %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$parent_mj_disapproval <- factor(
+  nsduh$parent_mj_disapproval,
+  levels = 1:3,
+  labels = c(
+    "Neither approve nor disapprove",
+    "Somewhat disapprove",
+    "Strongly disapprove"
+  )
+)
+table(nsduh$parent_mj_disapproval, useNA = "ifany")
+
+#parental norms- alcohol
+nsduh <- nsduh %>%
+  mutate(
+    parent_alc_disapproval = case_when(
+      YEPALDLY %in% 1:3 ~ YEPALDLY,
+      YEPALDLY %in% c(85, 94, 97, 98, 99) ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  )
+nsduh$parent_alc_disapproval <- factor(
+  nsduh$parent_alc_disapproval,
+  levels = 1:3,
+  labels = c(
+    "Neither approve nor disapprove",
+    "Somewhat disapprove",
+    "Strongly disapprove"
+  )
+)
+table(nsduh$parent_alc_disapproval, useNA = "ifany")
+```
+
+
+```{r}
+###SURVEY DESIGN OBJECT
+nsduh_design <- svydesign(
+  id = ~VEREP,
+  strata = ~VESTR_C,
+  weights = ~ANALWT2_C,
+  data = nsduh,
+  nest = TRUE
+)
+summary(nsduh_design)
+
+
+##OUTCOME + DEMOGRAPHIC
+svymean(~co_use, nsduh_design, na.rm = TRUE)
+prop.table(svytable(~co_use, nsduh_design)) * 100
+
+prop.table(svytable(~sex, nsduh_design)) * 100
+prop.table(svytable(~AGE3, nsduh_design)) * 100
+prop.table(svytable(~race4, nsduh_design)) * 100
+prop.table(svytable(~poverty, nsduh_design)) * 100
+prop.table(svytable(~in_school, nsduh_design)) * 100
+
+##BEHAVIORAL AND PSYCHOSOCIAL PREDICTORS
+prop.table(svytable(~school_like, nsduh_design)) * 100
+prop.table(svytable(~school_work_meaningful, nsduh_design)) * 100
+prop.table(svytable(~school_future_importance, nsduh_design)) * 100
+
+prop.table(svytable(~peer_mj_use_bin, nsduh_design)) * 100
+prop.table(svytable(~peer_alc_use_bin, nsduh_design)) * 100
+prop.table(svytable(~peer_drunkenness_bin, nsduh_design)) * 100
+prop.table(svytable(~alcohol_source, nsduh_design)) * 100
+
+##INDIVIDUAL LEVEL ATTITUDES
+prop.table(svytable(~friend_mj_disapproval, nsduh_design)) * 100
+prop.table(svytable(~friend_alc_disapproval, nsduh_design)) * 100
+prop.table(svytable(~closefriends_mj_disapproval, nsduh_design)) * 100
+prop.table(svytable(~closefriends_alc_disapproval, nsduh_design)) * 100
+
+##MENTAL HEALTH
+prop.table(svytable(~suicidal_ideation, nsduh_design)) * 100
+prop.table(svytable(~depressive_symptoms, nsduh_design)) * 100
+
+##PARENTAL ENGAGEMENT
+prop.table(svytable(~parent_talked_drugs, nsduh_design)) * 100
+prop.table(svytable(~parent_mj_disapproval, nsduh_design)) * 100
+prop.table(svytable(~parent_alc_disapproval, nsduh_design)) * 100
+
+predictors <- c(
+  "AGE3", "sex", "race4", "poverty", "in_school", "school_like",
+  "school_work_meaningful", "school_future_importance", "peer_mj_use_bin",
+  "peer_alc_use_bin", "peer_drunkenness_bin", "friend_mj_disapproval", 
+  "friend_alc_disapproval", "closefriends_mj_disapproval",
+  "closefriends_alc_disapproval", "suicidal_ideation", "depressive_symptoms",
+  "parent_talked_drugs", "parent_mj_disapproval", "parent_alc_disapproval"
+)
+
+age_biv <- svyglm(co_use ~ AGE3, design = nsduh_design, family = quasibinomial())
+sex_biv <- svyglm(co_use ~ sex, design = nsduh_design, family = quasibinomial())
+race_biv <- svyglm(co_use ~ race4, design = nsduh_design, family = quasibinomial())
+poverty_biv <- svyglm(co_use ~ poverty, design = nsduh_design, family = quasibinomial())
+in_school_biv <- svyglm(co_use ~ in_school, design = nsduh_design, family = quasibinomial())
+school_like_biv <- svyglm(co_use ~ school_like, design = nsduh_design, family = quasibinomial())
+school_work_meaningful_biv <- svyglm(co_use ~ school_work_meaningful, design = nsduh_design, family = quasibinomial())
+school_future_importance_biv <- svyglm(co_use ~ school_future_importance, design = nsduh_design, family = quasibinomial())
+peer_mj_biv <- svyglm(co_use ~ peer_mj_use_bin, design = nsduh_design, family = quasibinomial())
+peer_alc_biv <- svyglm(co_use ~ peer_alc_use_bin, design = nsduh_design, family = quasibinomial())
+peer_drunkenness_biv <- svyglm(co_use ~ peer_drunkenness_bin, design = nsduh_design, family = quasibinomial())
+friend_mj_dis_biv <- svyglm(co_use ~ friend_mj_disapproval, design = nsduh_design, family = quasibinomial())
+friend_alc_dis_biv <- svyglm(co_use ~ friend_alc_disapproval, design = nsduh_design, family = quasibinomial())
+closefriends_mj_dis_biv <- svyglm(co_use ~ closefriends_mj_disapproval, design = nsduh_design, family = quasibinomial())
+closefriends_alc_dis_biv <- svyglm(co_use ~ closefriends_alc_disapproval, design = nsduh_design, family = quasibinomial())
+suicidial_ideation_biv <- svyglm(co_use ~ suicidal_ideation, design = nsduh_design, family = quasibinomial())
+depressive_symptoms_biv <- svyglm(co_use ~ depressive_symptoms, design = nsduh_design, family = quasibinomial())
+parents_talked_drugs_biv <- svyglm(co_use ~ parent_talked_drugs, design = nsduh_design, family = quasibinomial())
+parent_mj_dis_biv <- svyglm(co_use ~ parent_mj_disapproval, design = nsduh_design, family = quasibinomial())
+parent_alc_dis_biv <- svyglm(co_use ~ parent_alc_disapproval, design = nsduh_design, family = quasibinomial())
+
+biv_list <- list(
+  AGE3 = age_biv,
+  sex = sex_biv,
+  race4 = race_biv,
+  poverty = poverty_biv,
+  in_school = in_school_biv,
+  school_like = school_like_biv,
+  school_work_meaningful = school_work_meaningful_biv,
+  school_future_importance = school_future_importance_biv,
+  peer_mj_use = peer_mj_biv,
+  peer_alc_use = peer_alc_biv,
+  peer_drunkenness = peer_drunkenness_biv,
+  friend_mj_disapproval = friend_mj_dis_biv,
+  friend_alc_disapproval = friend_alc_dis_biv,
+  closefriends_mj_disapproval = closefriends_mj_dis_biv,
+  closefriends_alc_disapproval = closefriends_alc_dis_biv,
+  suicidal_ideation = suicidial_ideation_biv,
+  depressive_symptoms = depressive_symptoms_biv,
+  parent_talked_drugs = parents_talked_drugs_biv,
+  parent_mj_disapproval = parent_mj_dis_biv,
+  parent_alc_disapproval = parent_alc_dis_biv
+)
+
+library(broom)
+library(purrr)
+library(dplyr)
+
+biv_table <- imap_dfr(biv_list, \(model, name) {
+  tidy(model, conf.int = TRUE, exponentiate = TRUE) |>
+    filter(term != "(Intercept)") |>
+    mutate(predictor = name)
+})
+
+biv_table <- biv_table |>
+  rename(
+    level = term,
+    OR = estimate,
+    CI_low = conf.low,
+    CI_high = conf.high,
+    p = p.value
+  )
+print(biv_table)
+
+biv_results <- biv_table |>
+  mutate(
+    OR_CI = sprintf("%.2f (%.2f–%.2f)", OR, CI_low, CI_high),
+    p = round(p, 3)
+  ) |>
+  select(predictor, level, OR_CI, p)
+
+biv_results
+
+```
+
+```{r}
+model_final <- svyglm(
+  co_use ~ AGE3 + sex + race4 + poverty + in_school + school_like +
+    school_work_meaningful + school_future_importance +
+    peer_mj_use_bin + peer_alc_use_bin + peer_drunkenness_bin +
+    friend_mj_disapproval + friend_alc_disapproval +
+    closefriends_mj_disapproval + closefriends_alc_disapproval +
+    suicidal_ideation + depressive_symptoms +
+    parent_talked_drugs + parent_mj_disapproval + parent_alc_disapproval,
+  design = nsduh_design,
+  family = quasibinomial()
+)
+
+results_table <- tidy(model_final, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  mutate(
+    OR = exp(estimate),
+    CI_low = exp(conf.low),
+    CI_high = exp(conf.high),
+    p = round(p.value, 3),
+    OR_CI = sprintf("%.2f (%.2f–%.2f)", OR, CI_low, CI_high)
+  ) |>
+  select(term, OR_CI, p)
+
+results_table
+#######
+library(broom)
+library(dplyr)
+library(tidyr)
+
+tab <- tidy(model_final, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  mutate(
+    OR = exp(estimate),
+    CI_low = exp(conf.low),
+    CI_high = exp(conf.high),
+    OR_CI = sprintf("%.2f (%.2f–%.2f)", OR, CI_low, CI_high)
+  )
+
+tab
+write.csv(results_table, "Table3.csv", row.names = FALSE)
+
+```
+
+```{r}
+###LOGISTIC REGRESSION
+library(caret)
+set.seed(123)
+features <- c(
+  "AGE3", "sex", "race4", "poverty", "in_school", "school_like",
+  "school_work_meaningful", "school_future_importance", "peer_mj_use_bin",
+  "peer_alc_use_bin", "closefriends_mj_disapproval", "closefriends_alc_disapproval",
+  "peer_drunkenness_bin", "friend_mj_disapproval", "friend_alc_disapproval",
+  "depressive_symptoms", "suicidal_ideation", "parent_talked_drugs",
+  "parent_mj_disapproval", "parent_alc_disapproval"
+)
+train_index <- sample(1:nrow(nsduh), 0.7 * nrow(nsduh))
+train_data <- nsduh[train_index, ]
+test_data <- nsduh[-train_index, ]
+
+train_data_clean <- na.omit(train_data[, c("co_use", features)])
+test_data_clean  <- na.omit(test_data[, c("co_use", features)])
+
+
+logit_model <- glm(
+  co_use ~ AGE3 + sex + race4 + poverty + in_school + school_like +
+    school_work_meaningful + school_future_importance + peer_mj_use_bin +
+    peer_alc_use_bin +
+    peer_drunkenness_bin + friend_mj_disapproval + friend_alc_disapproval +
+    depressive_symptoms + suicidal_ideation + parent_talked_drugs +
+    parent_mj_disapproval + parent_alc_disapproval,
+  data = train_data_clean, family = binomial()
+)
+
+#probabilities
+logit_prob <- predict(logit_model, test_data_clean, type = "response")
+
+library(pROC)
+logit_roc <- roc(test_data_clean$co_use, logit_prob)
+logit_auc <- auc(logit_roc)
+
+#classification metrics
+logit_pred <- ifelse(logit_prob > 0.05, "Yes", "No")
+library(caret)
+con_mat <-confusionMatrix(
+  factor(logit_pred, levels = c("No", "Yes")),
+  factor(test_data_clean$co_use, levels = c("No", "Yes")),
+  positive = "Yes"
+)
+
+#extract metrics
+logit_results <- data.frame(
+  Model = "Logistic Regression",
+  AUC = round(logit_auc, 3),
+  Sensitivity = round(unname(con_mat$byClass["Sensitivity"]), 3),
+  Specificity = round(unname(con_mat$byClass["Specificity"]), 3),
+  Precision = round(unname(con_mat$byClass["Precision"]), 3),
+  F1 = round(unname(con_mat$byClass["F1"]), 3)
+)
+
+logit_results
+```
+
+```{r}
+###XG BOOSTING
+library(xgboost)
+
+#creating predictor matrixes
+features <- c(
+  "AGE3", "sex", "race4", "poverty", "in_school", "school_like",
+  "school_work_meaningful", "school_future_importance", "peer_mj_use_bin",
+  "peer_alc_use_bin","closefriends_mj_disapproval", "closefriends_alc_disapproval",
+  "peer_drunkenness_bin", "friend_mj_disapproval", "friend_alc_disapproval",
+  "depressive_symptoms", "suicidal_ideation", "parent_talked_drugs",
+  "parent_mj_disapproval", "parent_alc_disapproval"
+)
+#drop NAs from outcome and features
+train_data_clean <- na.omit(train_data[, c("co_use", features)])
+test_data_clean  <- na.omit(test_data[,  c("co_use", features)])
+
+#build feature matrices
+X_train <- model.matrix(~ . - 1, data = train_data_clean[, features])
+X_test  <- model.matrix(~ . - 1, data = test_data_clean[,  features])
+
+#outcome vectors
+y_train_xgb <- ifelse(train_data_clean$co_use == "Yes", 1, 0)
+y_test_xgb  <- ifelse(test_data_clean$co_use  == "Yes", 1, 0)
+y_test <- test_data_clean$co_use
+
+
+dtrain <- xgb.DMatrix(data = X_train, label = y_train_xgb)
+dtest  <- xgb.DMatrix(data = X_test,  label = y_test_xgb)
+
+
+#set xg parameters
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "auc",
+  max_depth = 4,
+  eta = 0.05,
+  subsample = 0.8,
+  colsample_bytree = 0.8
+)
+
+#train xg model
+xgb_model <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = 200,
+  watchlist = list(train = dtrain),
+  verbose = 0
+)
+
+#predict probabilities
+xgb_pred <- predict(xgb_model, dtest)
+
+#compute auc
+roc_xgb <- roc(y_test, xgb_pred)
+auc_xgb <- auc(roc_xgb)
+auc_xgb
+
+threshold <- 0.05
+pred_class_xgb <- factor(ifelse(xgb_pred > threshold, "Yes", "No"), levels = c("No", "Yes"))
+
+
+actual <- factor(y_test, levels = c("No", "Yes"))
+
+#conf matrix
+conf_matrix_xgb <- table(Predicted = pred_class_xgb, Actual = actual)
+conf_matrix_xgb
+
+TP <- conf_matrix_xgb["Yes","Yes"]
+TN <- conf_matrix_xgb["No","No"]
+FP <- conf_matrix_xgb["Yes","No"]
+FN <- conf_matrix_xgb["No","Yes"]
+
+sensitivity_xgb <- TP / (TP + FN)
+specificity_xgb <- TN / (TN + FP)
+precision_xgb <- TP / (TP + FP)
+
+f1_xgb <- 2 * (precision_xgb * sensitivity_xgb) / 
+  (precision_xgb + sensitivity_xgb)
+
+xgboost_results <- data.frame(
+  Model = "XGBoost",
+  AUC = round (auc_xgb, 3),
+  Sensitivity = round(sensitivity_xgb, 3),
+  Specificity = round(specificity_xgb, 3),
+  Precision = round(precision_xgb, 3),
+  F1 = round(f1_xgb, 3)
+)
+xgboost_results
+
+final_results <- rbind(logit_results, xgboost_results)
+final_results
+rownames(final_results) <- NULL
+
+dev.new(width = 5, height = 5)
+plot(logit_roc, col="blue", lwd=3)
+plot(roc_xgb, col="red", add=TRUE, lwd=3)
+legend("bottomright",
+       legend=c("Logistic Regression","XGBoost"),
+       col=c("blue","red"),
+       lwd=3)
+
+
+
+#feature importance
+library(ggplot2)
+importance_matrix <- xgb.importance(
+  feature_names = colnames(X_train),
+  model = xgb_model
+)
+importance_matrix
+
+importance_matrix_clean <- importance_matrix %>%
+  mutate(
+    Feature_clean = Feature,
+    Feature_clean = gsub("peer_mj_use_binHigh", "Peer marijuana use: High vs Low", Feature_clean),
+    Feature_clean = gsub("peer_alc_use_binHigh", "Peer alcohol use: High vs Low", Feature_clean),
+    Feature_clean = gsub("peer_drunkenness_binHigh", "Peer drunkenness: High vs Low", Feature_clean),
+    Feature_clean = gsub("friend_mj_disapprovalStrongly disapprove", "Friend MJ disapproval: Strong vs Neither", Feature_clean),
+    Feature_clean = gsub("friend_mj_disapprovalSomewhat disapprove", "Friend MJ disapproval: Somewhat vs Neither", Feature_clean),
+    Feature_clean = gsub("parent_mj_disapprovalStrongly disapprove", "Parent MJ disapproval: Strong vs Neither", Feature_clean),
+    Feature_clean = gsub("parent_mj_disapprovalSomewhat disapprove", "Parent MJ disapproval: Somewhat vs Neither", Feature_clean),
+    Feature_clean = gsub("parent_alc_disapprovalStrongly disapprove", "Parent alcohol disapproval: Strong vs Neither", Feature_clean),
+    Feature_clean = gsub("AGE316–17", "Age 16–17 vs 12–13", Feature_clean),
+    Feature_clean = gsub("povertyAt or above 200% poverty threshold", "High income vs low", Feature_clean)
+  )
+
+ggplot(importance_matrix_clean[1:10,], 
+       aes(x = reorder(Feature_clean, Gain), y = Gain, fill = Gain)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  labs(
+    title = "XGBoost Feature Importance",
+    x = "Predictor",
+    y = "Importance (Gain)"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+########BIVARIATE TABLE
+library(dplyr)
+library(tidyr)
+library(survey)
+
+library(dplyr)
+library(tidyr)
+library(survey)
+
+make_table2_var <- function(var_name, design){
+  
+  f_var <- as.formula(paste0("~", var_name))
+  f_joint <- as.formula(paste0("~", var_name, " + co_use"))
+  
+  # TOTAL %
+  total_df <- as.data.frame(prop.table(svytable(f_var, design)) * 100)
+  names(total_df) <- c("Category", "Total")
+  
+  # No/Yes %
+  joint_df <- as.data.frame(prop.table(svytable(f_joint, design), margin = 1) * 100)
+  names(joint_df) <- c("Category", "co_use", "Percent")
+  
+  joint_wide <- joint_df %>%
+    pivot_wider(names_from = co_use, values_from = Percent)
+  
+  # JOIN (now clean + safe)
+  out <- left_join(total_df, joint_wide, by = "Category")
+  
+  # Add variable name
+  out$Variable <- var_name
+  
+  # p-value
+  model <- svyglm(
+    as.formula(paste0("co_use ~ ", var_name)),
+    design = design,
+    family = quasibinomial()
+  )
+  
+  p_val <- regTermTest(model, as.formula(paste0("~", var_name)))$p
+  p_formatted <- ifelse(p_val < 0.001, "<0.001", sprintf("%.3f", p_val))
+  
+  out$p_value <- rep(p_formatted, nrow(out))
+  
+  return(out)
+}
+predictors <- c(
+  "AGE3", "sex", "race4", "poverty", "in_school",
+  "school_like", "school_work_meaningful", "school_future_importance",
+  "peer_mj_use_bin", "peer_alc_use_bin", "peer_drunkenness_bin",
+  "friend_mj_disapproval", "friend_alc_disapproval",
+  "closefriends_mj_disapproval", "closefriends_alc_disapproval",
+  "suicidal_ideation", "depressive_symptoms",
+  "parent_talked_drugs", "parent_mj_disapproval", "parent_alc_disapproval"
+)
+
+table2_list <- lapply(predictors, make_table2_var, design = nsduh_design)
+table2 <- bind_rows(table2_list)
+
+table2_clean <- table2 %>%
+  mutate(
+    Total = round(Total, 1),
+    No = round(No, 2),
+    Yes = round(Yes, 2)
+  ) %>%
+  select(
+    Variable,
+    Category,
+    Total,
+    No,
+    Yes,
+    p_value
+  )
+
+table2_clean <- table2_clean %>%
+  group_by(Variable) %>%
+  mutate(
+    Variable = ifelse(row_number() == 1, Variable, ""),
+    p_value = ifelse(row_number() == 1, p_value, "")
+  ) %>%
+  ungroup()
+
+write.csv(table2_clean, "Table2.csv", row.names = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
