@@ -15,4 +15,4 @@ Master's thesis, NYU MPH in Biostatistics (2026). Advisor: Dr. Shu (Violet) Xu
 - Logistic regression and XGBoost showed comparable discrimination (AUC 0.928 vs. 0.921)
 
 ## Files
-- 'FINAL_THESIS_RM.RMD' = full data cleaning, modeling, and evaluation code
+- FINAL_THESIS_RM.RMD - full data cleaning, modeling, and evaluation code
