@@ -16,4 +16,4 @@ Data is public but not included here due to file size. Download from SAMHSA: htt
 - Logistic regression and XGBoost showed comparable discrimination (AUC 0.928 vs. 0.921)
 
 ## Files
-- FINAL_THESIS_RM.RMD - full data cleaning, modeling, and evaluation code
+- `FINAL_THESIS_RM.RMD` - full data cleaning, modeling, and evaluation code
