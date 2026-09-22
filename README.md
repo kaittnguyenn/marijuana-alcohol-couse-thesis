@@ -3,6 +3,7 @@ Master's thesis, NYU MPH in Biostatistics (2026). Advisor: Dr. Shu (Violet) Xu
 
 ## Data
 2023 National Survey on Drug Use and Health (NSDUH), youth sample aged 12-17.
+Data is public but not included here due to file size. Download from SAMHSA: https://www.samhsa.gov/data/data-we-collect/nsduh-national-survey-drug-use-and-health
 
 ## Methods
 - Survey-weighted logistic regression (svyglm, quasibinomial) to identify predictors of co-use
